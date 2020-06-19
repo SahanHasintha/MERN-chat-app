@@ -1,0 +1,97 @@
+import React, { Component } from 'react';
+import socket from '../utils/socketConn';
+import {PRIVATE_MESSAGE, SENT_MESSAGE, MESSAGE_RECIEVED} from '../Event';
+import SideBar from './SideBar';
+import Messages from './Messages';
+import MessageInput from './MessageInput';
+
+export default class ChatContainer extends Component {
+    constructor(props){
+        super(props);
+        this.state={
+            chats:[],
+            activeChat:null,
+            activeChatName:'',
+        }
+    }
+
+    componentDidMount(){
+        socket.on(PRIVATE_MESSAGE,(chat)=>{
+            this.setState({chats:[...this.state.chats, chat]})
+            this.setChat(chat)
+        });
+    }
+
+    setChat = (chat) => {
+        console.log(`${MESSAGE_RECIEVED}-${chat.chatId}`)
+        socket.on(`${MESSAGE_RECIEVED}-${chat.chatId}`, this.setMessage(chat))
+    }
+
+    setMessage = (chat) => {
+        return (message) => {
+            console.log(message);
+            let newChats = this.state.chats.map((c)=>{
+                if(c._id === chat._id){
+                    console.log(c._id, message.chatId)
+                    c.messages.push(message);
+                }
+                return c;
+            })
+
+            this.setState({chats:newChats})
+        }
+    }
+
+    onSendPrivateMessage = (reciever) => {
+        socket.emit(PRIVATE_MESSAGE, {reciever, sender:this.props.user}, ({error, user})=>{
+            if(error){
+                alert(error);
+            }
+        })
+    } 
+
+    setActiveChat = (chat) => {
+        this.setState({activeChat:chat})
+    }
+
+    onMessageSent = (message) => {
+
+        const reciever = this.state.activeChat.users.find((u)=> u.name !==this.props.user.name )
+        socket.emit(SENT_MESSAGE, {message, chatId:this.state.activeChat.chatId, sender:this.props.user, reciever})
+    }
+
+    render() {
+        console.log(this.state.activeChat);
+        return (
+            <div className="ui grid"  style={{margin:'10px'}}>
+                <div className="six wide column">
+                    <SideBar 
+                        chats={this.state.chats}
+                        activeChat={this.state.activeChat}
+                        setActiveChat= {this.setActiveChat}
+                        logout={this.props.logOut}
+                        user={this.props.user}
+                        onSendPrivateMessage={this.onSendPrivateMessage}
+                    />
+                </div>
+                 { 
+                    this.state.activeChat ? 
+                        <div className="ten wide column">
+                            <MessageInput 
+                                activeChat={this.state.activeChat}
+                                onMessageSent={this.onMessageSent}
+                            />
+                            <Messages 
+                            messages = {this.state.activeChat.messages}
+                            user={this.props.user}
+                            />
+                         </div> :
+                        <h5>Select the chat</h5>
+                    }
+                    
+               
+            </div>
+        )
+    }
+}
+
